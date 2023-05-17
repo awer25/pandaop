@@ -4,6 +4,7 @@ import unittest
 import importlib
 import numpy as np
 from typing import Dict, List, Optional
+import time
 
 from opendbc.can.packer import CANPacker  # pylint: disable=import-error
 from panda import ALTERNATIVE_EXPERIENCE
@@ -173,6 +174,63 @@ class LongitudinalAccelSafetyTest(PandaSafetyTestBase, abc.ABC):
             should_tx = controls_allowed and min_accel <= accel <= max_accel
             should_tx = should_tx or accel == self.INACTIVE_ACCEL
           self.assertEqual(should_tx, self._tx(self._accel_msg(accel)))
+
+
+class LongitudinalGasBrakeSafetyTest(PandaSafetyTestBase, abc.ABC):
+
+  # MIN_GAS and INACTIVE_GAS are usually both 0
+  MAX_GAS: int = 0
+  MIN_GAS: int = 0
+  INACTIVE_GAS: int = 0
+  MAX_BRAKE: int = 0
+
+  @classmethod
+  def setUpClass(cls):
+    if cls.__name__ == "LongitudinalGasBrakeSafetyTest":
+      cls.safety = None
+      raise unittest.SkipTest
+
+  @abc.abstractmethod
+  def _send_gas_msg(self, gas: int):
+    pass
+
+  @abc.abstractmethod
+  def _send_brake_msg(self, brake: int):
+    pass
+
+  def test_gas_brake_limits_correct(self):
+    self.assertGreater(self.MAX_GAS, 0)
+    # TODO: always allow inactive gas, we're just lucky it's always between
+    self.assertTrue(self.MIN_GAS <= self.INACTIVE_GAS <= self.MAX_GAS)
+    self.assertLessEqual(self.MIN_GAS, self.MAX_GAS)
+    self.assertGreater(self.MAX_BRAKE, 0)
+
+  def test_gas_actuation_limits(self):
+    # Simple test that asserts gas is only sent with min and max gas allowances
+    for controls_allowed in (True, False):
+      for gas in np.arange(round(self.MIN_GAS / 2), self.MAX_GAS + 100, 1):
+        self.safety.set_controls_allowed(controls_allowed)
+        # add debugging prints:
+        did_tx = self._tx(self._send_gas_msg(gas))
+        print("gas: ", gas, "controls_allowed: ", controls_allowed, "should_tx: ", controls_allowed and self.MIN_GAS <= gas <= self.MAX_GAS, "did_tx: ", did_tx)
+        # test that gas command is within min gas and max gas when controls are allowed, but also allow gas if it's inactive at any time
+        should_tx = ((controls_allowed and self.MIN_GAS <= gas <= self.MAX_GAS) or
+                     (not controls_allowed and gas == self.INACTIVE_GAS))
+        self.assertEqual(should_tx, self._tx(self._send_gas_msg(gas)))
+
+  # TODO: test stock longitudinal
+  def test_brake_actuation_limits(self):
+    # Simple test that asserts brake command is only sent with min and max brake allowances (min is 0, max is self.MAX_BRAKE)
+    for controls_allowed in (True, False):
+      self.safety.set_controls_allowed(controls_allowed)
+      for brake in np.arange(0, self.MAX_BRAKE * 2, 1):
+        should_tx = (controls_allowed and brake <= self.MAX_BRAKE) or brake == 0
+
+        # add debugging prints:
+        did_tx = self._tx(self._send_brake_msg(brake))
+        print("brake: ", brake, "controls_allowed: ", controls_allowed, "should_tx: ", (controls_allowed and 0 <= brake <= self.MAX_BRAKE) or brake == 0, "did_tx: ", did_tx)
+        # test that brake command is within min brake and max brake when controls are allowed, or 0 if controls are not allowed
+        self.assertEqual(should_tx, self._tx(self._send_brake_msg(brake)))
 
 
 class TorqueSteeringSafetyTestBase(PandaSafetyTestBase, abc.ABC):
