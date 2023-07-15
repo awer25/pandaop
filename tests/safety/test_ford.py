@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import itertools
 import numpy as np
 import unittest
 
@@ -13,6 +14,7 @@ MSG_EngVehicleSpThrottle = 0x204   # RX from PCM, for driver throttle input
 MSG_BrakeSysFeatures = 0x415       # RX from ABS, for vehicle speed
 MSG_EngVehicleSpThrottle2 = 0x202  # RX from PCM, for second vehicle speed
 MSG_Yaw_Data_FD1 = 0x91            # RX from RCM, for yaw rate
+MSG_ACCDATA_2 = 0x187              # RX from IPMA, for AEB status
 MSG_Steering_Data_FD1 = 0x083      # TX by OP, various driver switches and LKAS/CC buttons
 MSG_ACCDATA = 0x186                # TX by OP, ACC controls
 MSG_ACCDATA_3 = 0x18A              # TX by OP, ACC/TJA user interface
@@ -134,6 +136,10 @@ class TestFordSafetyBase(common.PandaSafetyTest):
               "VehRollYaw_No_Cnt": self.cnt_yaw_rate % 256}
     self.__class__.cnt_yaw_rate += 1
     return self.packer.make_can_msg_panda("Yaw_Data_FD1", 0, values, fix_checksum=checksum)
+
+  def _stock_aeb_msg(self, aeb: bool):
+    values = {"CmbbBrkDecel_B_Rq": 1 if aeb else 0}
+    return self.packer.make_can_msg_panda("ACCDATA_2", 0, values)
 
   # Drive throttle input
   def _user_gas_msg(self, gas: float):
@@ -373,23 +379,27 @@ class TestFordLongitudinalSafety(TestFordSafetyBase):
     self.safety.init_tests()
 
   # ACC command
-  def _acc_command_msg(self, gas: float, brake: float, cmbb_deny: bool = False):
+  def _acc_command_msg(self, gas: float, brake: float, cmbb_deny: bool = False, min_engine_torque: bool = False):
     values = {
-      "AccPrpl_A_Rq": gas,                       # [-5|5.23] m/s^2
-      "AccBrkTot_A_Rq": brake,                   # [-20|11.9449] m/s^2
-      "CmbbDeny_B_Actl": 1 if cmbb_deny else 0,  # [0|1] deny AEB actuation
+      "AccPrpl_A_Rq": gas,      # [-5|5.23] m/s^2
+      "AccBrkTot_A_Rq": brake,  # [-20|11.9449] m/s^2
+      "CmbbDeny_B_Actl": 1 if cmbb_deny else 0,
+      "CmbbEngTqMn_B_Rq": 1 if min_engine_torque else 0,
     }
     return self.packer.make_can_msg_panda("ACCDATA", 0, values)
 
   def test_stock_aeb(self):
-    # Test that CmbbDeny_B_Actl is never 1, it prevents the ABS module from actuating AEB requests from ACCDATA_2
     for controls_allowed in (True, False):
       self.safety.set_controls_allowed(controls_allowed)
-      for cmbb_deny in (True, False):
-        should_tx = not cmbb_deny
-        self.assertEqual(should_tx, self._tx(self._acc_command_msg(self.INACTIVE_GAS, self.INACTIVE_ACCEL, cmbb_deny)))
-        should_tx = controls_allowed and not cmbb_deny
-        self.assertEqual(should_tx, self._tx(self._acc_command_msg(self.MAX_GAS, self.MAX_ACCEL, cmbb_deny)))
+      for aeb in (True, False):
+        self.assertTrue(self._rx(self._stock_aeb_msg(aeb)))
+
+        for cmbb_deny in (True, False):
+          for min_engine_torque in (True, False):
+            # cmbb_deny should always be false, and min_engine_torque should be true only when AEB
+            should_tx = not cmbb_deny and (not aeb or min_engine_torque)
+            self.assertEqual(should_tx, self._tx(self._acc_command_msg(self.INACTIVE_GAS, self.INACTIVE_ACCEL,
+                                                                       cmbb_deny, min_engine_torque)))
 
   def test_gas_safety_check(self):
     for controls_allowed in (True, False):
