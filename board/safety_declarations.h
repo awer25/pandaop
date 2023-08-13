@@ -189,8 +189,32 @@ typedef struct {
 
 void safety_tick(const addr_checks *addr_checks);
 
+typedef enum {
+  NoTransition,
+  AllOutput,
+  BrakePressed,
+  CancelPressed,
+  CruiseEngaged,
+  CruiseOff,
+  GasPressed,
+  HeartbeatLost,
+  InvalidMessage,
+  LagDetected,
+  RegenBraking,
+  SetPressed,
+  SpeedMismatch,
+  ValidMessage,
+} ControlsTransitionReason;
+
 // This can be set by the safety hooks
 bool controls_allowed = false;
+ControlsTransitionReason controls_transition_reason = NoTransition;
+
+void controls_allowed_transition(bool allowed, ControlsTransitionReason transition_reason) {
+  controls_allowed = allowed;
+  controls_transition_reason = transition_reason;
+}
+
 bool relay_malfunction = false;
 bool gas_interceptor_detected = false;
 int gas_interceptor_prev = 0;
