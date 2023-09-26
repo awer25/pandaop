@@ -1,6 +1,10 @@
 #ifndef SAFETY_HYUNDAI_COMMON_H
 #define SAFETY_HYUNDAI_COMMON_H
 
+#define HYUNDAI_PT_CAN  0
+#define HYUNDAI_CANFD_A_CAN 1
+#define HYUNDAI_CAM_CAN 2
+
 const int HYUNDAI_PARAM_EV_GAS = 1;
 const int HYUNDAI_PARAM_HYBRID_GAS = 2;
 const int HYUNDAI_PARAM_LONGITUDINAL = 4;
@@ -26,6 +30,8 @@ bool hyundai_camera_scc = false;
 bool hyundai_canfd_hda2 = false;
 bool hyundai_alt_limits = false;
 uint8_t hyundai_last_button_interaction;  // button messages since the user pressed an enable button
+int hyundai_pt_bus;
+int hyundai_scc_bus;
 
 void hyundai_common_init(uint16_t param) {
   hyundai_ev_gas_signal = GET_FLAG(param, HYUNDAI_PARAM_EV_GAS);
@@ -83,6 +89,11 @@ void hyundai_common_cruise_buttons_check(const int cruise_button, const int main
 
     cruise_button_prev = cruise_button;
   }
+}
+
+void hyundai_common_get_bus(const bool canfd_hda2) {
+  hyundai_pt_bus = canfd_hda2 ? HYUNDAI_CANFD_A_CAN : HYUNDAI_PT_CAN;
+  hyundai_scc_bus = hyundai_camera_scc ? HYUNDAI_CAM_CAN : hyundai_pt_bus;
 }
 
 #endif
