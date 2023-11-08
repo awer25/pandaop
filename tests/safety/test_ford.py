@@ -384,7 +384,7 @@ class TestFordCANFDStockSafety(TestFordSafetyBase):
     self.safety.init_tests()
 
 
-class TestFordLongitudinalSafetyBase(TestFordSafetyBase):
+class TestFordLongitudinalSafetyBase(TestFordSafetyBase, common.LongitudinalAccelSafetyTest):
   FWD_BLACKLISTED_ADDRS = {2: [MSG_ACCDATA, MSG_ACCDATA_3, MSG_Lane_Assist_Data1, MSG_LateralMotionControl,
                                MSG_LateralMotionControl2, MSG_IPMA_Data]}
 
@@ -392,7 +392,7 @@ class TestFordLongitudinalSafetyBase(TestFordSafetyBase):
   MIN_ACCEL = -3.5
   INACTIVE_ACCEL = 0.0
 
-  MAX_GAS = 2.0
+  MAX_GAS = 2.0  # gas is also in m/s^2
   MIN_GAS = -0.5
   INACTIVE_GAS = -5.0
 
@@ -409,6 +409,10 @@ class TestFordLongitudinalSafetyBase(TestFordSafetyBase):
       "CmbbDeny_B_Actl": 1 if cmbb_deny else 0,  # [0|1] deny AEB actuation
     }
     return self.packer.make_can_msg_panda("ACCDATA", 0, values)
+
+  def _accel_msg(self, accel: float):
+    # Brake actuation only
+    return self._acc_command_msg(self.INACTIVE_GAS, accel)
 
   def test_stock_aeb(self):
     # Test that CmbbDeny_B_Actl is never 1, it prevents the ABS module from actuating AEB requests from ACCDATA_2
@@ -427,14 +431,6 @@ class TestFordLongitudinalSafetyBase(TestFordSafetyBase):
         gas = round(gas, 2)  # floats might not hit exact boundary conditions without rounding
         should_tx = (controls_allowed and self.MIN_GAS <= gas <= self.MAX_GAS) or gas == self.INACTIVE_GAS
         self.assertEqual(should_tx, self._tx(self._acc_command_msg(gas, self.INACTIVE_ACCEL)))
-
-  def test_brake_safety_check(self):
-    for controls_allowed in (True, False):
-      self.safety.set_controls_allowed(controls_allowed)
-      for brake in np.arange(self.MIN_ACCEL - 2, self.MAX_ACCEL + 2, 0.05):
-        brake = round(brake, 2)  # floats might not hit exact boundary conditions without rounding
-        should_tx = (controls_allowed and self.MIN_ACCEL <= brake <= self.MAX_ACCEL) or brake == self.INACTIVE_ACCEL
-        self.assertEqual(should_tx, self._tx(self._acc_command_msg(self.INACTIVE_GAS, brake)))
 
 
 class TestFordLongitudinalSafety(TestFordLongitudinalSafetyBase):
