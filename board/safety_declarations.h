@@ -4,8 +4,9 @@
 #define GET_BYTE(msg, b) ((msg)->data[(b)])
 #define GET_FLAG(value, mask) (((__typeof__(mask))(value) & (mask)) == (mask))
 
-#define BUILD_SAFETY_CFG(rx, tx) ((safety_config){(rx), (sizeof((rx)) / sizeof((rx)[0])), \
-                                                  (tx), (sizeof((tx)) / sizeof((tx)[0]))})
+#define BUILD_SAFETY_CFG(rx, tx, relay_addr) ((safety_config){(rx), (sizeof((rx)) / sizeof((rx)[0])), \
+                                                              (tx), (sizeof((tx)) / sizeof((tx)[0])), \
+                                                              (relay_addr), (sizeof((relay_addr)) / sizeof((relay_addr)[0]))})
 #define SET_RX_CHECKS(rx, config) ((config).rx_checks = (rx), \
                                    (config).rx_checks_len = sizeof((rx)) / sizeof((rx)[0]))
 #define SET_TX_MSGS(tx, config) ((config).tx_msgs = (tx), \
@@ -137,11 +138,21 @@ typedef struct {
   RxStatus status;
 } RxCheck;
 
+// TODO: check counter/checksum, etc like normal rx addr checks?
+// just make this a flag with current rx checks?
+typedef struct {
+  const int addr;
+  const int bus;
+  const int len;
+} RelayAddr;
+
 typedef struct {
   RxCheck *rx_checks;
   int rx_checks_len;
   const CanMsg *tx_msgs;
   int tx_msgs_len;
+  RelayAddr *relay_addrs;
+  int relay_addrs_len;
 } safety_config;
 
 typedef uint32_t (*get_checksum_t)(const CANPacket_t *to_push);
@@ -190,7 +201,7 @@ int get_addr_check_index(const CANPacket_t *to_push, RxCheck addr_list[], const 
 void update_counter(RxCheck addr_list[], int index, uint8_t counter);
 void update_addr_timestamp(RxCheck addr_list[], int index);
 bool is_msg_valid(RxCheck addr_list[], int index);
-bool rx_msg_safety_check(const CANPacket_t *to_push,
+bool rx_msg_safety_check(const CANPacket_t *to_push, int index,
                          const safety_config *cfg,
                          const safety_hooks *safety_hooks);
 void generic_rx_checks(bool stock_ecu_detected);

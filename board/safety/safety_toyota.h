@@ -83,6 +83,8 @@ RxCheck toyota_lta_interceptor_rx_checks[] = {
   {.msg = {{0x201, 0, 6, .check_checksum = false, .max_counter = 15U, .frequency = 50U}, { 0 }, { 0 }}},
 };
 
+RelayAddr toyota_relay_addrs[] = {{0x2E4, 0, 5}};
+
 // safety param flags
 // first byte is for EPS factor, second is for flags
 const uint32_t TOYOTA_PARAM_OFFSET = 8U;
@@ -208,8 +210,6 @@ static void toyota_rx_hook(const CANPacket_t *to_push) {
       // TODO: remove this, only left in for gas_interceptor_prev test
       gas_interceptor_prev = gas_interceptor;
     }
-
-    generic_rx_checks((addr == 0x2E4));
   }
 }
 
@@ -344,11 +344,11 @@ static safety_config toyota_init(uint16_t param) {
 
   safety_config ret;
   if (toyota_lta) {
-    ret = enable_gas_interceptor ? BUILD_SAFETY_CFG(toyota_lta_interceptor_rx_checks, TOYOTA_INTERCEPTOR_TX_MSGS) : \
-                                   BUILD_SAFETY_CFG(toyota_lta_rx_checks, TOYOTA_TX_MSGS);
+    ret = enable_gas_interceptor ? BUILD_SAFETY_CFG(toyota_lta_interceptor_rx_checks, TOYOTA_INTERCEPTOR_TX_MSGS, toyota_relay_addrs) : \
+                                   BUILD_SAFETY_CFG(toyota_lta_rx_checks, TOYOTA_TX_MSGS, toyota_relay_addrs);
   } else {
-    ret = enable_gas_interceptor ? BUILD_SAFETY_CFG(toyota_lka_interceptor_rx_checks, TOYOTA_INTERCEPTOR_TX_MSGS) : \
-                                   BUILD_SAFETY_CFG(toyota_lka_rx_checks, TOYOTA_TX_MSGS);
+    ret = enable_gas_interceptor ? BUILD_SAFETY_CFG(toyota_lka_interceptor_rx_checks, TOYOTA_INTERCEPTOR_TX_MSGS, toyota_relay_addrs) : \
+                                   BUILD_SAFETY_CFG(toyota_lka_rx_checks, TOYOTA_TX_MSGS, toyota_relay_addrs);
   }
   return ret;
 }

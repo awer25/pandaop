@@ -60,11 +60,32 @@ safety_config current_safety_config;
 bool safety_rx_hook(const CANPacket_t *to_push) {
   bool controls_allowed_prev = controls_allowed;
 
-  bool valid = rx_msg_safety_check(to_push, &current_safety_config, current_hooks);
+  bool valid = true;
+  int index = get_addr_check_index(to_push, current_safety_config.rx_checks,
+                                   current_safety_config.rx_checks_len);
+  if (index != -1) {
+    bool valid = rx_msg_safety_check(to_push, &current_safety_config, current_hooks);
   if (valid) {
-    current_hooks->rx(to_push);
+    if (valid) {
+      current_hooks->rx(to_push);
+    }
   }
 
+  // check relay malfunction and common rx logic
+  bool stock_ecu_detected = false;
+  print("relay_addrs_len: "); puth(current_safety_config.relay_addrs_len); print("\n");
+  for (int i = 0; i < current_safety_config.relay_addrs_len; i++) {
+    print("addr: "); puth(GET_ADDR(to_push)); print("\n");
+    if ((GET_ADDR(to_push) == current_safety_config.relay_addrs[i].addr) && (GET_BUS(to_push) == current_safety_config.relay_addrs[i].bus)) { // &&
+//        (GET_LEN(to_push) == current_safety_config.relay_addrs[i].len)) {
+      print("stock ecu!\n");
+      stock_ecu_detected = true;
+      break;
+    }
+  }
+  generic_rx_checks(stock_ecu_detected);
+
+  // TODO check if this should go in or out of index if
   // reset mismatches on rising edge of controls_allowed to avoid rare race condition
   if (controls_allowed && !controls_allowed_prev) {
     heartbeat_engaged_mismatches = 0;
@@ -220,37 +241,34 @@ void update_addr_timestamp(RxCheck addr_list[], int index) {
   }
 }
 
-bool rx_msg_safety_check(const CANPacket_t *to_push,
+bool rx_msg_safety_check(const CANPacket_t *to_push, int index,
                          const safety_config *cfg,
                          const safety_hooks *safety_hooks) {
 
-  int index = get_addr_check_index(to_push, cfg->rx_checks, cfg->rx_checks_len);
   update_addr_timestamp(cfg->rx_checks, index);
 
-  if (index != -1) {
-    // checksum check
-    if ((safety_hooks->get_checksum != NULL) && (safety_hooks->compute_checksum != NULL) && cfg->rx_checks[index].msg[cfg->rx_checks[index].status.index].check_checksum) {
-      uint32_t checksum = safety_hooks->get_checksum(to_push);
-      uint32_t checksum_comp = safety_hooks->compute_checksum(to_push);
-      cfg->rx_checks[index].status.valid_checksum = checksum_comp == checksum;
-    } else {
-      cfg->rx_checks[index].status.valid_checksum = true;
-    }
+  // checksum check
+  if ((safety_hooks->get_checksum != NULL) && (safety_hooks->compute_checksum != NULL) && cfg->rx_checks[index].msg[cfg->rx_checks[index].status.index].check_checksum) {
+    uint32_t checksum = safety_hooks->get_checksum(to_push);
+    uint32_t checksum_comp = safety_hooks->compute_checksum(to_push);
+    cfg->rx_checks[index].status.valid_checksum = checksum_comp == checksum;
+  } else {
+    cfg->rx_checks[index].status.valid_checksum = true;
+  }
 
-    // counter check (max_counter == 0 means skip check)
-    if ((safety_hooks->get_counter != NULL) && (cfg->rx_checks[index].msg[cfg->rx_checks[index].status.index].max_counter > 0U)) {
-      uint8_t counter = safety_hooks->get_counter(to_push);
-      update_counter(cfg->rx_checks, index, counter);
-    } else {
-      cfg->rx_checks[index].status.wrong_counters = 0U;
-    }
+  // counter check (max_counter == 0 means skip check)
+  if ((safety_hooks->get_counter != NULL) && (cfg->rx_checks[index].msg[cfg->rx_checks[index].status.index].max_counter > 0U)) {
+    uint8_t counter = safety_hooks->get_counter(to_push);
+    update_counter(cfg->rx_checks, index, counter);
+  } else {
+    cfg->rx_checks[index].status.wrong_counters = 0U;
+  }
 
-    // quality flag check
-    if ((safety_hooks->get_quality_flag_valid != NULL) && cfg->rx_checks[index].msg[cfg->rx_checks[index].status.index].quality_flag) {
-      cfg->rx_checks[index].status.valid_quality_flag = safety_hooks->get_quality_flag_valid(to_push);
-    } else {
-      cfg->rx_checks[index].status.valid_quality_flag = true;
-    }
+  // quality flag check
+  if ((safety_hooks->get_quality_flag_valid != NULL) && cfg->rx_checks[index].msg[cfg->rx_checks[index].status.index].quality_flag) {
+    cfg->rx_checks[index].status.valid_quality_flag = safety_hooks->get_quality_flag_valid(to_push);
+  } else {
+    cfg->rx_checks[index].status.valid_quality_flag = true;
   }
   return is_msg_valid(cfg->rx_checks, index);
 }
@@ -362,6 +380,8 @@ int set_safety_hooks(uint16_t mode, uint16_t param) {
   current_safety_config.rx_checks_len = 0;
   current_safety_config.tx_msgs = NULL;
   current_safety_config.tx_msgs_len = 0;
+  current_safety_config.relay_addrs = NULL;
+  current_safety_config.relay_addrs_len = 0;
 
   int set_status = -1;  // not set
   int hook_config_count = sizeof(safety_hook_registry) / sizeof(safety_hook_config);
@@ -379,6 +399,8 @@ int set_safety_hooks(uint16_t mode, uint16_t param) {
     current_safety_config.rx_checks_len = cfg.rx_checks_len;
     current_safety_config.tx_msgs = cfg.tx_msgs;
     current_safety_config.tx_msgs_len = cfg.tx_msgs_len;
+    current_safety_config.relay_addrs = cfg.relay_addrs;
+    current_safety_config.relay_addrs_len = cfg.relay_addrs_len;
     // reset all dynamic fields in addr struct
     for (int j = 0; j < current_safety_config.rx_checks_len; j++) {
       current_safety_config.rx_checks[j].status = (RxStatus){0};
