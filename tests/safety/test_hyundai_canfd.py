@@ -116,7 +116,11 @@ class TestHyundaiCanfdHDA1Base(TestHyundaiCanfdBase):
   {"GAS_MSG": ("ACCELERATOR_ALT", "ACCELERATOR_PEDAL"), "SCC_BUS": 2, "SAFETY_PARAM": Panda.FLAG_HYUNDAI_HYBRID_GAS | Panda.FLAG_HYUNDAI_CAMERA_SCC},
 ])
 class TestHyundaiCanfdHDA1(TestHyundaiCanfdHDA1Base):
-  pass
+  def test_set_resume_buttons_pause_resume(self):
+    pass
+
+  def test_cancel_button_pause_resume(self):
+    pass
 
 
 @parameterized_class([
@@ -155,6 +159,12 @@ class TestHyundaiCanfdHDA1AltButtons(TestHyundaiCanfdHDA1Base):
         self.safety.set_controls_allowed(enabled)
         self.assertFalse(self._tx(self._button_msg(btn)))
 
+  def test_set_resume_buttons_pause_resume(self):
+    pass
+
+  def test_cancel_button_pause_resume(self):
+    pass
+
 
 class TestHyundaiCanfdHDA2EV(TestHyundaiCanfdBase):
 
@@ -173,6 +183,12 @@ class TestHyundaiCanfdHDA2EV(TestHyundaiCanfdBase):
     self.safety = libpanda_py.libpanda
     self.safety.set_safety_hooks(Panda.SAFETY_HYUNDAI_CANFD, Panda.FLAG_HYUNDAI_CANFD_HDA2 | Panda.FLAG_HYUNDAI_EV_GAS)
     self.safety.init_tests()
+
+  def test_set_resume_buttons_pause_resume(self):
+    pass
+
+  def test_cancel_button_pause_resume(self):
+    pass
 
 
 # TODO: Handle ICE and HEV configurations once we see cars that use the new messages
@@ -194,6 +210,12 @@ class TestHyundaiCanfdHDA2EVAltSteering(TestHyundaiCanfdBase):
     self.safety.set_safety_hooks(Panda.SAFETY_HYUNDAI_CANFD, Panda.FLAG_HYUNDAI_CANFD_HDA2 | Panda.FLAG_HYUNDAI_EV_GAS |
                                  Panda.FLAG_HYUNDAI_CANFD_HDA2_ALT_STEERING)
     self.safety.init_tests()
+
+  def test_set_resume_buttons_pause_resume(self):
+    pass
+
+  def test_cancel_button_pause_resume(self):
+    pass
 
 
 class TestHyundaiCanfdHDA2LongEV(HyundaiLongitudinalBase, TestHyundaiCanfdHDA2EV):
@@ -222,6 +244,27 @@ class TestHyundaiCanfdHDA2LongEV(HyundaiLongitudinalBase, TestHyundaiCanfdHDA2EV
       "aReqValue": accel,
     }
     return self.packer.make_can_msg_panda("SCC_CONTROL", 1, values)
+
+  def test_set_resume_buttons_pause_resume(self):
+    pass
+
+  def test_cancel_button_pause_resume(self):
+    pass
+
+class TestHyundaiCanfdHDA2LongEVPauseResumeBtn(TestHyundaiCanfdHDA2LongEV):
+  def setUp(self):
+    self.packer = CANPackerPanda("hyundai_canfd")
+    self.safety = libpanda_py.libpanda
+    self.safety.set_safety_hooks(Panda.SAFETY_HYUNDAI_CANFD, Panda.FLAG_HYUNDAI_CANFD_HDA2 | \
+              Panda.FLAG_HYUNDAI_LONG | Panda.FLAG_HYUNDAI_EV_GAS | Panda.FLAG_HYUNDAI_PAUSE_RESUME_BTN)
+    self.safety.init_tests()
+
+  def test_set_resume_buttons(self):
+    pass
+
+  def test_cancel_button(self):
+    pass
+
 
 
 # Tests HDA1 longitudinal for ICE, hybrid, EV
@@ -265,6 +308,38 @@ class TestHyundaiCanfdHDA1Long(HyundaiLongitudinalBase, TestHyundaiCanfdHDA1Base
 
   # no knockout
   def test_tester_present_allowed(self):
+    pass
+
+  def test_set_resume_buttons_pause_resume(self):
+    pass
+
+  def test_cancel_button_pause_resume(self):
+    pass
+
+# Tests HDA1 longitudinal for ICE, hybrid, EV
+@parameterized_class([
+  # Camera SCC is the only supported configuration for HDA1 longitudinal, TODO: allow radar SCC
+  {"GAS_MSG": ("ACCELERATOR_BRAKE_ALT", "ACCELERATOR_PEDAL_PRESSED"), "SAFETY_PARAM": Panda.FLAG_HYUNDAI_LONG},
+  {"GAS_MSG": ("ACCELERATOR", "ACCELERATOR_PEDAL"), "SAFETY_PARAM": Panda.FLAG_HYUNDAI_LONG | Panda.FLAG_HYUNDAI_EV_GAS},
+  {"GAS_MSG": ("ACCELERATOR_ALT", "ACCELERATOR_PEDAL"), "SAFETY_PARAM": Panda.FLAG_HYUNDAI_LONG | Panda.FLAG_HYUNDAI_HYBRID_GAS},
+])
+class TestHyundaiCanfdHDA1LongPauseResumeBtn(TestHyundaiCanfdHDA1Long):
+  @classmethod
+  def setUpClass(cls):
+    if cls.__name__ == "TestHyundaiCanfdHDA1LongPauseResumeBtn":
+      cls.safety = None
+      raise unittest.SkipTest
+
+  def setUp(self):
+    self.packer = CANPackerPanda("hyundai_canfd")
+    self.safety = libpanda_py.libpanda
+    self.safety.set_safety_hooks(Panda.SAFETY_HYUNDAI_CANFD, Panda.FLAG_HYUNDAI_CAMERA_SCC | Panda.FLAG_HYUNDAI_PAUSE_RESUME_BTN | self.SAFETY_PARAM)
+    self.safety.init_tests()
+
+  def test_set_resume_buttons(self):
+    pass
+
+  def test_cancel_button(self):
     pass
 
 

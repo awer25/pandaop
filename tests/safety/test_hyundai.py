@@ -135,6 +135,12 @@ class TestHyundaiSafetyCameraSCC(TestHyundaiSafety):
     self.safety.set_safety_hooks(Panda.SAFETY_HYUNDAI, Panda.FLAG_HYUNDAI_CAMERA_SCC)
     self.safety.init_tests()
 
+class TestHyundaiPauseResumeBtn(TestHyundaiSafety):
+  def setUp(self):
+    self.packer = CANPackerPanda("hyundai_kia_generic")
+    self.safety = libpanda_py.libpanda
+    self.safety.set_safety_hooks(Panda.SAFETY_HYUNDAI, Panda.FLAG_HYUNDAI_PAUSE_RESUME_BTN)
+    self.safety.init_tests()
 
 class TestHyundaiLegacySafety(TestHyundaiSafety):
   def setUp(self):
@@ -166,6 +172,7 @@ class TestHyundaiLegacySafetyHEV(TestHyundaiSafety):
   def _user_gas_msg(self, gas):
     values = {"CR_Vcu_AccPedDep_Pos": gas}
     return self.packer.make_can_msg_panda("E_EMS11", 0, values, fix_checksum=checksum)
+
 
 class TestHyundaiLongitudinalSafety(HyundaiLongitudinalBase, TestHyundaiSafety):
   TX_MSGS = [[0x340, 0], [0x4F1, 0], [0x485, 0], [0x420, 0], [0x421, 0], [0x50A, 0], [0x389, 0], [0x4A2, 0], [0x38D, 0], [0x483, 0], [0x7D0, 0]]
@@ -211,6 +218,24 @@ class TestHyundaiLongitudinalSafety(HyundaiLongitudinalBase, TestHyundaiSafety):
     self.assertFalse(self._tx(self._accel_msg(0, aeb_req=True)))
     self.assertFalse(self._tx(self._accel_msg(0, aeb_decel=1.0)))
 
+  def test_set_resume_buttons_pause_resume(self):
+    pass
+
+  def test_cancel_button_pause_resume(self):
+    pass
+
+class TestHyundaiLongitudinalSafetyPauseResumeBtn(TestHyundaiLongitudinalSafety):
+  def setUp(self):
+    self.packer = CANPackerPanda("hyundai_kia_generic")
+    self.safety = libpanda_py.libpanda
+    self.safety.set_safety_hooks(Panda.SAFETY_HYUNDAI, Panda.FLAG_HYUNDAI_LONG | Panda.FLAG_HYUNDAI_PAUSE_RESUME_BTN)
+    self.safety.init_tests()
+
+  def test_set_resume_buttons(self):
+    pass
+
+  def test_cancel_button(self):
+    pass
 
 if __name__ == "__main__":
   unittest.main()
