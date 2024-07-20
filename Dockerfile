@@ -56,7 +56,12 @@ RUN mkdir -p /tmp/openpilot/ && \
     git clone --depth 1 https://github.com/commaai/cereal && \
     git clone --depth 1 https://github.com/commaai/opendbc && \
     cd cereal && git fetch origin $CEREAL_REF && git checkout FETCH_HEAD && rm -rf .git/ && cd .. && \
-    cd opendbc && git fetch origin $OPENDBC_REF && git checkout FETCH_HEAD && rm -rf .git/ && cd .. && \
+    # TODO: REVERTME \
+    # cd opendbc && git fetch origin $OPENDBC_REF && git checkout FETCH_HEAD && rm -rf .git/ && cd .. && \
+    git -C opendbc remote add my https://github.com/nworb-cire/opendbc.git && \
+    git -C opendbc fetch my gm-fix-acc-cmd && \
+    git -C opendbc checkout my/gm-fix-acc-cmd && \
+    # END REVERTME \
     cp -pR opendbc/SConstruct opendbc/site_scons/ . && \
     pip3 install --break-system-packages --no-cache-dir -r opendbc/requirements.txt && \
     scons -j8 --minimal opendbc/ cereal/
