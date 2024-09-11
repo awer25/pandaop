@@ -8,16 +8,20 @@ from panda.tests.safety.common import CANPackerPanda
 
 MAX_ACCEL = 2.0
 MIN_ACCEL = -3.5
+AEB_MIN_ACCEL = -8.0
+INACTIVE_AEB_ACCEL = 0.0
 
 MSG_ESP_19 = 0xB2       # RX from ABS, for wheel speeds
 MSG_LH_EPS_03 = 0x9F    # RX from EPS, for driver steering torque
 MSG_ESP_05 = 0x106      # RX from ABS, for brake light state
+MSG_ACC_10 = 0x117      # TX by OP, FCW/AEB control to the stopping coordinator
 MSG_TSK_06 = 0x120      # RX from ECU, for ACC status from drivetrain coordinator
 MSG_MOTOR_20 = 0x121    # RX from ECU, for driver throttle input
 MSG_ACC_06 = 0x122      # TX by OP, ACC control instructions to the drivetrain coordinator
 MSG_HCA_01 = 0x126      # TX by OP, Heading Control Assist steering torque
 MSG_GRA_ACC_01 = 0x12B  # TX by OP, ACC control buttons for cancel/resume
 MSG_ACC_07 = 0x12E      # TX by OP, ACC control instructions to the drivetrain coordinator
+MSG_ACC_15 = 0x2A9      # TX by OP, FCW/AEB HUD to the instrument cluster
 MSG_ACC_02 = 0x30C      # TX by OP, ACC HUD data to the instrument cluster
 MSG_LDW_02 = 0x397      # TX by OP, Lane line recognition and text alerts
 
@@ -102,6 +106,15 @@ class TestVolkswagenMqbSafety(common.PandaCarSafetyTest, common.DriverTorqueStee
     values = {"ACC_Sollbeschleunigung_02": accel, "ACC_Folgebeschl": secondary_accel}
     return self.packer.make_can_msg_panda("ACC_07", 0, values)
 
+  # FCW/AEB control message
+  def _acc_10_msg(self, accel=0.0, partial_braking=False, target_braking=False):
+    values = {
+      "ANB_Teilbremsung_Freigabe": partial_braking,
+      "ANB_Zielbremsung_Freigabe": target_braking,
+      "ANB_Zielbrems_Teilbrems_Verz_Anf": accel,
+    }
+    return self.packer.make_can_msg_panda("ACC_10", 0, values)
+
   # Verify brake_pressed is true if either the switch or pressure threshold signals are true
   def test_redundant_brake_signals(self):
     test_combinations = [(True, True, True), (True, True, False), (True, False, True), (False, False, False)]
@@ -157,8 +170,10 @@ class TestVolkswagenMqbStockSafety(TestVolkswagenMqbSafety):
 
 
 class TestVolkswagenMqbLongSafety(TestVolkswagenMqbSafety):
-  TX_MSGS = [[MSG_HCA_01, 0], [MSG_LDW_02, 0], [MSG_LH_EPS_03, 2], [MSG_ACC_02, 0], [MSG_ACC_06, 0], [MSG_ACC_07, 0]]
-  FWD_BLACKLISTED_ADDRS = {0: [MSG_LH_EPS_03], 2: [MSG_HCA_01, MSG_LDW_02, MSG_ACC_02, MSG_ACC_06, MSG_ACC_07]}
+  TX_MSGS = [[MSG_HCA_01, 0], [MSG_LDW_02, 0], [MSG_LH_EPS_03, 2], [MSG_ACC_02, 0],
+             [MSG_ACC_06, 0], [MSG_ACC_07, 0], [MSG_ACC_10, 0], [MSG_ACC_15, 0]]
+  FWD_BLACKLISTED_ADDRS = {0: [MSG_LH_EPS_03], 2: [MSG_HCA_01, MSG_LDW_02, MSG_ACC_02, MSG_ACC_06,
+                                                   MSG_ACC_07, MSG_ACC_10, MSG_ACC_15]}
   FWD_BUS_LOOKUP = {0: 2, 2: 0}
   INACTIVE_ACCEL = 3.01
 
@@ -219,6 +234,18 @@ class TestVolkswagenMqbLongSafety(TestVolkswagenMqbSafety):
         self.assertEqual(send, self._tx(self._acc_07_msg(accel)), (controls_allowed, accel))
         # ensure the optional secondary accel field remains inactive for now
         self.assertEqual(is_inactive_accel, self._tx(self._acc_07_msg(accel, secondary_accel=accel)), (controls_allowed, accel))
+
+  def test_aeb_actuation(self):
+    for partial_braking, target_braking in [[False, False], [True, False], [False, True]]:
+      for accel in np.concatenate((np.arange(AEB_MIN_ACCEL - 2, 0.0, 0.1), [INACTIVE_AEB_ACCEL])):
+        accel = round(accel, 2)  # floats might not hit exact boundary conditions without rounding
+        aeb_valid_inactive = accel == INACTIVE_AEB_ACCEL and not any([partial_braking, target_braking])
+        # TODO: When real AEB is implemented
+        # aeb_valid_active = AEB_MIN_ACCEL <= accel <= 0.0 and any([partial_braking, target_braking])
+        # send = aeb_valid_inactive or aeb_valid_active
+        send = aeb_valid_inactive
+        self.assertEqual(send, self._tx(self._acc_10_msg(accel, partial_braking, target_braking)),
+                         f"{send=} {accel=} {partial_braking=} {target_braking=}")
 
 
 if __name__ == "__main__":
